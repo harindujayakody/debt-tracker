@@ -1,0 +1,78 @@
+# 💰 Debt Tracker (PHP + SQLite)
+
+A lightweight single-file PHP app to track debts and repayments.  
+Built with PHP, SQLite, TailwindCSS, and Chart.js.
+
+---
+
+## ✨ Features
+
+- Track debts (per person, with optional labels).
+- Record payments with date + note.
+- Summary cards with progress bars.
+- Per-person overview with quick actions:
+  - Add payment inline
+  - Edit person name
+  - Add new debt
+- Charts:
+  - Remaining by person (bar chart)
+  - Payments per month (doughnut)
+- Single-column layout for All Debts & Payments.
+- Payments pagination (default: 10 per page).
+- CSRF protection built in.
+- All data stored locally in `debt_tracker.sqlite`.
+
+---
+
+## 🚀 Quick Start
+
+1. Clone this repo:
+
+   git clone https://github.com/harindujayakody/debt-tracker.git
+   cd debt-tracker
+
+2. Start PHP’s built-in server:
+
+   php -S localhost:8000
+
+3. Open http://localhost:8000 in your browser.
+
+4. Done ✅ — start adding debts & payments.
+
+---
+
+## 📂 Data Storage
+
+All data is stored in a local SQLite file:
+
+   debt_tracker.sqlite
+
+To back up, just copy this file.
+
+---
+
+## 🛠 Configuration
+
+Default page size for Payments pagination = 10.  
+Change inside index.php:
+
+   $payPerPage = 10;
+
+---
+
+## 📸 Screenshots
+
+Uploading 😊
+
+---
+
+## ❤️ Credits
+
+Built with PHP, SQLite, TailwindCSS, and Chart.js.  
+Author: Harindu Jayakody (https://github.com/harindujayakody)
+
+---
+
+## 📜 License
+
+MIT License — you are free to use, modify, and distribute this project.
