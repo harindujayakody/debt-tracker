@@ -63,6 +63,9 @@ Change inside index.php:
 ## 📸 Screenshots
 
 Uploading 😊
+<img width="1209" height="583" alt="image" src="https://github.com/user-attachments/assets/8354b88f-ef81-401f-838e-afa25e305079" />
+
+
 
 ---
 
