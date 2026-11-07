@@ -18,11 +18,13 @@ Built with PHP, SQLite, TailwindCSS, and Chart.js.
   - Remaining by person (bar chart)
   - Payments per month (doughnut)
 - Single-column layout for All Debts & Payments.
-- Payments pagination (default: 10 per page).
+- Payments are shown in a single list; pagination is not currently available.
 - CSRF protection built in.
 - All data stored locally in `debt_tracker.sqlite`.
 
 ---
+
+> **Security:** This app has no login, and the database is stored in the web-accessible directory. Run it only on a trusted local computer bound to `localhost`; do not expose it to a network or public web server. Other local users or processes may still be able to access the data.
 
 ## 🚀 Quick Start
 
@@ -51,14 +53,7 @@ To back up, just copy this file.
 
 ---
 
-## 🛠 Configuration
 
-Default page size for Payments pagination = 10.  
-Change inside index.php:
-
-   $payPerPage = 10;
-
----
 
 ## 📸 Screenshots
 
@@ -81,3 +76,4 @@ Author: Harindu Jayakody (https://github.com/harindujayakody)
 ## 📜 License
 
 MIT License — you are free to use, modify, and distribute this project.
+
