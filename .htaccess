@@ -1,0 +1,7 @@
+# Debt Tracker — deny direct web access to the SQLite database (Fixes #1).
+# The database lives outside the webroot by default (see db_path() in
+# index.php); this is defense in depth for installs that still have the
+# file in the webroot, and only applies on Apache.
+<FilesMatch "\.(sqlite|sqlite3|db)$">
+  Require all denied
+</FilesMatch>

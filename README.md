@@ -24,7 +24,7 @@ Built with PHP, SQLite, TailwindCSS, and Chart.js.
 
 ---
 
-> **Security:** This app has no login, and the database is stored in the web-accessible directory. Run it only on a trusted local computer bound to `localhost`; do not expose it to a network or public web server. Other local users or processes may still be able to access the data.
+> **Security:** The SQLite database lives **outside the webroot** by default (parent directory; override with `DEBT_TRACKER_DB`), and `.htaccess` denies direct download of `*.sqlite` files on Apache as defense in depth. An optional password gate is available: set `DEBT_TRACKER_PASSWORD_HASH` (output of PHP `password_hash()`) to require a password before anything is shown. With no password set, there is no login — run it only on a trusted local computer bound to `localhost`; do not expose it to a network or public web server. Other local users or processes may still be able to access the data.
 
 ## 🚀 Quick Start
 
@@ -48,6 +48,12 @@ Built with PHP, SQLite, TailwindCSS, and Chart.js.
 All data is stored in a local SQLite file:
 
    debt_tracker.sqlite
+
+By default it lives in the **parent directory of the webroot** (not in the
+web-accessible directory), so it cannot be downloaded via the web server.
+Set `DEBT_TRACKER_DB` to use a different path. If you upgrade from a version
+that kept the file in the webroot, the existing file keeps being used — move
+it next to the webroot yourself (or rely on `.htaccess` + the password gate).
 
 To back up, just copy this file.
 
@@ -75,5 +81,5 @@ Author: Harindu Jayakody (https://github.com/harindujayakody)
 
 ## 📜 License
 
-MIT License — you are free to use, modify, and distribute this project.
+MIT License — see [LICENSE](LICENSE). You are free to use, modify, and distribute this project.
 

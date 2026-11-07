@@ -9,11 +9,71 @@
 session_start();
 if (!isset($_SESSION['csrf'])) { $_SESSION['csrf'] = bin2hex(random_bytes(16)); }
 
+// --- Optional password gate (Fixes #1) ---
+// This app has no user accounts. If it is ever served beyond localhost,
+// set DEBT_TRACKER_PASSWORD_HASH (output of PHP password_hash()) to require
+// a password before anything is shown. DEBT_TRACKER_PASSWORD (plaintext)
+// also works, but prefer the hash. With neither set, the app behaves as
+// before — run it bound to localhost only.
+$auth_hash  = getenv('DEBT_TRACKER_PASSWORD_HASH') ?: false;
+$auth_plain = getenv('DEBT_TRACKER_PASSWORD') ?: false;
+$auth_error = '';
+if (($auth_hash || $auth_plain) && empty($_SESSION['authed'])) {
+  if (($_POST['auth_action'] ?? '') === 'login') {
+    $pw = (string)($_POST['password'] ?? '');
+    $ok = $auth_hash ? password_verify($pw, $auth_hash)
+                     : hash_equals((string)$auth_plain, $pw);
+    if ($ok) {
+      $_SESSION['authed'] = true;
+      session_regenerate_id(true);
+      header('Location: ' . strtok($_SERVER['REQUEST_URI'], '?'));
+      exit;
+    }
+    $auth_error = 'Wrong password.';
+  }
+  ?><!doctype html><html lang="en"><head><meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Debt Tracker — Sign in</title></head>
+  <body style="font-family:system-ui,sans-serif;max-width:360px;margin:15vh auto;padding:0 16px">
+  <h1>Debt Tracker</h1>
+  <p>This tracker is password-protected. Enter the password to continue.</p>
+  <?php if ($auth_error): ?><p style="color:#b00"><?=h($auth_error)?></p><?php endif; ?>
+  <form method="post">
+    <input type="hidden" name="csrf" value="<?=h($_SESSION['csrf'])?>" />
+    <input type="hidden" name="auth_action" value="login" />
+    <input type="password" name="password" placeholder="Password" required autofocus
+      style="width:100%;padding:10px;border:1px solid #ccc;border-radius:8px" />
+    <button style="margin-top:10px;padding:10px 16px;border:1px solid #ccc;border-radius:8px;background:#fff;cursor:pointer">Sign in</button>
+  </form></body></html><?php
+  exit;
+}
+if (($auth_hash || $auth_plain) && (($_GET['logout'] ?? '') === '1')) {
+  unset($_SESSION['authed']);
+  header('Location: ?');
+  exit;
+}
+$auth_enabled = (bool)($auth_hash || $auth_plain);
+
 // --- Database bootstrap ---
+// The SQLite file must NOT live in the webroot (Fixes #1): anyone who can
+// guess the URL could download the whole database. Default location is the
+// parent directory of the webroot; override with DEBT_TRACKER_DB. An
+// existing database already in the webroot keeps being used (so upgrades
+// never orphan data) — move it manually, or rely on .htaccess + the
+// password gate above as defense in depth.
+function db_path(): string {
+  $env = getenv('DEBT_TRACKER_DB');
+  if ($env) return $env;
+  $legacy = __DIR__ . DIRECTORY_SEPARATOR . 'debt_tracker.sqlite';
+  if (file_exists($legacy)) return $legacy; // pre-existing install: don't orphan it
+  $outside = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'debt_tracker.sqlite';
+  if (is_writable(dirname($outside))) return $outside;
+  return $legacy; // fallback; .htaccess denies direct download on Apache
+}
 function db(): PDO {
   static $pdo = null;
   if ($pdo === null) {
-    $dsn = 'sqlite:' . __DIR__ . DIRECTORY_SEPARATOR . 'debt_tracker.sqlite';
+    $dsn = 'sqlite:' . db_path();
     $pdo = new PDO($dsn);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     init_db($pdo);
@@ -69,11 +129,15 @@ try {
     $stmt->execute([':id'=>(int)($_POST['id'] ?? 0)]);
   }
   if ($action === 'add_payment') {
+    // Validate paid_at (Fixes #3): must be a real YYYY-MM-DD date, else today.
+    $paid_at = (string)($_POST['paid_at'] ?? date('Y-m-d'));
+    $d = DateTime::createFromFormat('Y-m-d', $paid_at);
+    if (!$d || $d->format('Y-m-d') !== $paid_at) $paid_at = date('Y-m-d');
     $stmt = db()->prepare("INSERT INTO payments (who,amount,paid_at,note) VALUES (:who,:amount,:paid_at,:note)");
     $stmt->execute([
       ':who'=>trim((string)($_POST['who'] ?? '')),
       ':amount'=>max(0, (float)($_POST['amount'] ?? 0)),
-      ':paid_at'=>($_POST['paid_at'] ?? date('Y-m-d')),
+      ':paid_at'=>$paid_at,
       ':note'=>trim((string)($_POST['note'] ?? '')),
     ]);
   }
@@ -163,7 +227,7 @@ foreach ($timeline_rows as $row) { $timeline[$row['ym']] = (float)$row['amt']; }
   <header class="flex flex-col gap-3 mb-4">
     <div>
       <h1 class="text-2xl md:text-3xl font-bold tracking-tight">Debt Tracker (LKR)</h1>
-      <p class="text-sm text-slate-500">Track who you owe, record repayments, and see remaining balances.</p>
+      <p class="text-sm text-slate-500">Track who you owe, record repayments, and see remaining balances.<?php if (!empty($auth_enabled)): ?> <a class="underline" href="?logout=1">Sign out</a><?php endif; ?></p>
     </div>
   </header>
 
@@ -301,7 +365,7 @@ foreach ($timeline_rows as $row) { $timeline[$row['ym']] = (float)$row['amt']; }
               <td class="py-2 pr-2"><?=h(money_lkr($r['debt']))?></td>
               <td class="py-2 pr-2"><?=h(money_lkr($r['paid']))?></td>
               <td class="py-2 pr-2 font-semibold align-top">
-                <?php $pct = $r['debt']>0 ? round(($r['paid']/$r['debt'])*100) : 0; ?>
+                <?php $pct = $r['debt']>0 ? max(0, min(100, round(($r['paid']/$r['debt'])*100))) : 0; ?>
                 <?=h(money_lkr($r['remaining']))?>
                 <div class="mt-1 h-2 rounded-full bg-slate-100 overflow-hidden w-44">
                   <div class="h-2 bg-emerald-500" style="width: <?=$pct?>%"></div>
@@ -425,7 +489,7 @@ foreach ($timeline_rows as $row) { $timeline[$row['ym']] = (float)$row['amt']; }
     <div class="p-4 border-b"><h3 class="font-semibold">Notes</h3></div>
     <div class="p-4 text-sm text-slate-600 space-y-2">
       <p>Example: If you owe <strong>LKR 90,000</strong> to <strong>Tharindu</strong> and record a payment of <strong>LKR 15,000</strong>, the app deducts it from Tharindu’s total and the overall Total Remaining.</p>
-      <p>All data is stored locally in <code>debt_tracker.sqlite</code>. Back it up by copying that file.</p>
+      <p>All data is stored locally in <code>debt_tracker.sqlite</code> (outside the webroot by default; see <code>db_path()</code> in <code>index.php</code>). Back it up by copying that file.</p>
     </div>
   </div>
 
@@ -465,7 +529,12 @@ foreach ($timeline_rows as $row) { $timeline[$row['ym']] = (float)$row['amt']; }
 </div>
 <?php endif; ?>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" integrity="sha384-9nhczxUqK87bcKHh20fSQcTGD4qq5GhayNYSYWqwBkINBhOfQLg/P5HG5lF1urn4" crossorigin="anonymous"></script>
+<!-- NOTE: the Tailwind Play CDN script above has no SRI hash on purpose:
+     cdn.tailwindcss.com is unversioned, so a pinned hash would break without
+     warning when it changes. For production, build Tailwind CSS locally and
+     serve it from this directory instead. Google Fonts CSS likewise cannot
+     carry SRI. -->
 <script>
   const remaining = <?= json_encode($chart_by_person, JSON_UNESCAPED_SLASHES) ?>;
   const timelineMap = <?= json_encode($timeline, JSON_UNESCAPED_SLASHES) ?>;
